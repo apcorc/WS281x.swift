@@ -24,47 +24,39 @@
 */
 import SwiftyGPIO  //Comment this when not using the package manager
 
+public class WS281x {
+    public let numElements: Int
+    
+    internal let type: WSKind
+    internal let pwm: PWMOutput
+    internal let colorOrder: ColorOrder
+    internal var sequence: [ByteConvertibleColor]
 
-public class WS281x{
-    private let type: WSKind
-    private let pwm: PWMOutput
-    private let numElements: Int
-    private let frequency: Int
-    private let resetDelay: Int
-    private let dutyOne: Int
-    private let dutyZero: Int
-    private var sequence: [UInt32]
-
-
-    public init(_ pwm: PWMOutput, 
-               type: WSKind,
-               numElements: Int) {
+    public init(
+        _ pwm: PWMOutput,
+        type: WSKind,
+        numElements: Int,
+        order: ColorOrder = .RGB
+    ) {
         self.pwm = pwm
         self.type = type
         self.numElements = numElements
-        self.frequency =  type.getDuty().frequency
-        self.resetDelay = type.getDuty().resetDelay
-        self.dutyZero = type.getDuty().zero
-        self.dutyOne = type.getDuty().one
+        self.colorOrder = order
 
         sequence = [UInt32](repeating: 0x0, count: numElements)
+        
         // Initialize PWM
         pwm.initPWM()
         pwm.initPWMPattern(bytes: numElements*3, 
-                            at: type.getDuty().frequency, 
-                            with: type.getDuty().resetDelay, 
-                            dutyzero: type.getDuty().zero, 
-                            dutyone: type.getDuty().one)
+                            at: type.frequency,
+                            with: type.resetDelay,
+                            dutyzero: type.zero,
+                            dutyone: type.one)
     }
 
     /// Set a led using the sequence id
-    public func setLed(_ id: Int, r: UInt8, g: UInt8, b: UInt8){
-        sequence[id] = (UInt32(r) << 16) | (UInt32(g) << 8) | (UInt32(b))
-    }
-
-    /// Set all leds with the colors positioned as GBR 
-    public func setLeds(_ gbr: [UInt32]){
-        sequence = gbr
+    public func setLed(_ id: Int, color: ByteConvertibleColor) {
+        sequence[id] = color
     }
 
     /// Set a led in a sequence viewed as a classic matrix, where each row starts with an id = rownum*width.
@@ -75,80 +67,132 @@ public class WS281x{
     ///  8  9  10 11
     ///  12 13 14 15
     ///
-    public func setLedAsMatrix(x: Int, y:Int, width:Int, r: UInt8, g: UInt8, b: UInt8){
-        sequence[y*width+x] = (UInt32(r) << 16) | (UInt32(g) << 8) | (UInt32(b)) 
-    }
-
-    /// Set a led in a sequence viewed as a sequential matrix, where the first element in a row is connected to the element above
-    /// Rarely used, for example in the Pimoroni Unicordn Hat.
-    /// Es.
-    ///  3  2  1  0
-    ///  4  5  6  7
-    ///  11 10 9  8
-    ///  12 13 14 15
-    ///
-    public func setLedAsSequentialMatrix(x: Int, y:Int, width:Int, r: UInt8, g: UInt8, b: UInt8){
-        var pos = y*width
-        pos += (y%2 > 0) ? (width-1-x) : x
-        sequence[pos] = (UInt32(r) << 16) | (UInt32(g) << 8) | (UInt32(b)) 
+    public func setLedAsMatrix(point: MatrixPoint, width: Int, color: ByteConvertibleColor) {
+        let position = (point.y * width) + point.x
+        setLed(position, color: color)
     }
 
     /// Start transmission
-    public func start(){
+    public func start() {
         pwm.sendDataWithPattern(values: toByteStream())
     }
 
     /// Wait for the transmission to end
-    public func wait(){
+    public func wait() {
         pwm.waitOnSendData()
     }
 
     /// Clean up once you are done
-    public func cleanup(){
+    public func cleanup() {
         pwm.cleanupPattern()
     }
-
 
     private func toByteStream() -> [UInt8]{
         var byteStream = [UInt8]()
         for led in sequence {
-            // Add as GRB
-            byteStream.append(UInt8((led >> UInt32(8))  & 0xff))
-            byteStream.append(UInt8((led >> UInt32(16)) & 0xff))
-            byteStream.append(UInt8(led  & 0xff))
+            let byte = led.toByte(order: self.colorOrder)
+            
+            byteStream.append(UInt8((byte >> UInt32(16)) & 0xff))
+            byteStream.append(UInt8((byte >> UInt32(8)) & 0xff))
+            byteStream.append(UInt8(byte & 0xff))
         }
         return byteStream
     }
 }
 
-public enum WSKind{
-    case WS2811       //T0H:0.5us T0L:2.0us, T1H:1.2us T1L:1.3us , resDelay > 50us
-    case WS2812       //T0H:0.35us T0L:0.8us, T1H:0.7us T1L:0.6us , resDelay > 50us
-    case WS2812B      //T0H:0.35us T0L:0.9us, T1H:0.9us T1L:0.35us , resDelay > 50us  
-    case WS2812B2017  //T0H:0.35us T0L:0.9us, T1H:0.9us T1L:0.35us , resDelay > 300us 2017 revision of WS2812B
-    case WS2812S      //T0H:0.4us T0L:0.84us, T1H:0.85us T1L:0.4us , resDelay > 50us
-    case WS2813       //T0H:0.35us T0L:0.9us, T1H:0.9us T1L:0.35us , resDelay > 250us ?  
-    case WS2813B      //T0H:0.25us T0L:0.6us, T1H:0.6us T1L:0.25us , resDelay > 280us ? 
+public struct WSKind {
+    let zero: Int
+    let one: Int
+    let frequency: Int
+    let resetDelay: Int
+    
+    public init(
+        zero: Int,
+        one: Int,
+        frequency: Int,
+        resetDelay: Int
+    ) {
+        self.zero = zero
+        self.one = one
+        self.frequency = frequency
+        self.resetDelay = resetDelay
+    }
+    
+    /// T0H:0.5us T0L:2.0us, T1H:1.2us T1L:1.3us , resDelay > 50us
+    public static let WS2811 = WSKind(zero: 33, one: 66, frequency: 800_000, resetDelay: 55)
+    
+    /// T0H:0.35us T0L:0.8us, T1H:0.7us T1L:0.6us , resDelay > 50us
+    public static let WS2812 = WSKind(zero: 33, one: 66, frequency: 800_000, resetDelay: 55)
+    
+    /// T0H:0.35us T0L:0.9us, T1H:0.9us T1L:0.35us , resDelay > 50us
+    public static let WS2812B = WSKind(zero: 33, one: 66, frequency: 800_000, resetDelay: 55)
+    
+    /// T0H:0.35us T0L:0.9us, T1H:0.9us T1L:0.35us , resDelay > 300us 2017 revision of WS2812B
+    public static let WS2812B2017 = WSKind(zero: 33, one: 66, frequency: 800_000, resetDelay: 300)
+    
+    /// T0H:0.4us T0L:0.84us, T1H:0.85us T1L:0.4us , resDelay > 50us
+    public static let WS2812S = WSKind(zero: 33, one: 66, frequency: 800_000, resetDelay: 55)
+    
+    /// T0H:0.35us T0L:0.9us, T1H:0.9us T1L:0.35us , resDelay > 250us ?
+    public static let WS2813 = WSKind(zero: 33, one: 66, frequency: 800_000, resetDelay: 255)
+    
+    /// T0H:0.25us T0L:0.6us, T1H:0.6us T1L:0.25us , resDelay > 280us ?
+    public static let WS2813B = WSKind(zero: 30, one: 70, frequency: 800_000, resetDelay: 280)
+}
 
-    public func getDuty() -> (zero:Int,one:Int,frequency:Int,resetDelay:Int){
-        switch self{
-            case WSKind.WS2811:
-                return (33,66,800_000,55)
-            case WSKind.WS2812:
-                return (33,66,800_000,55)
-            case WSKind.WS2812B:
-                return (33,66,800_000,55)
-            case WSKind.WS2812B2017:
-                return (33,66,800_000,300)
-            case WSKind.WS2812S:
-                return (33,66,800_000,55)
-            case WSKind.WS2813:
-                return (33,66,800_000,255)
-            case WSKind.WS2813B:
-                return (30,70,800_000,280)
+public enum ColorOrder {
+    case RGB
+    case RBG
+    case GRB
+    case GBR
+    case BRG
+    case BGR
+}
+
+public protocol ByteConvertibleColor {
+    func toByte(order: ColorOrder) -> UInt32
+}
+
+public struct WSRGBColor: ByteConvertibleColor {
+    let red: UInt8
+    let green: UInt8
+    let blue: UInt8
+    
+    public init(
+        red: UInt8,
+        green: UInt8,
+        blue: UInt8
+    ) {
+        self.red = red
+        self.green = green
+        self.blue = blue
+    }
+    
+    public func toByte(order: ColorOrder) -> UInt32 {
+        switch order {
+        case .RGB: return (UInt32(red) << 16) | (UInt32(green) << 08) | (UInt32(blue) << 00)
+        case .RBG: return (UInt32(red) << 16) | (UInt32(green) << 00) | (UInt32(blue) << 08)
+        case .GRB: return (UInt32(red) << 08) | (UInt32(green) << 16) | (UInt32(blue) << 00)
+        case .GBR: return (UInt32(red) << 00) | (UInt32(green) << 16) | (UInt32(blue) << 08)
+        case .BRG: return (UInt32(red) << 08) | (UInt32(green) << 00) | (UInt32(blue) << 16)
+        case .BGR: return (UInt32(red) << 00) | (UInt32(green) << 08) | (UInt32(blue) << 16)
         }
     }
 }
 
+// Only used internally for initial 0x0 sequence
+extension UInt32: ByteConvertibleColor {
+    public func toByte(order: ColorOrder) -> UInt32 {
+        return self
+    }
+}
 
-
+public struct MatrixPoint {
+    public let x: Int
+    public let y: Int
+    
+    public init(x: Int, y: Int) {
+        self.x = x
+        self.y = y
+    }
+}

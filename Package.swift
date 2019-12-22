@@ -16,6 +16,12 @@ let package = Package(
             name: "WS281x",
             dependencies: ["SwiftyGPIO"],
             path: ".",
-            sources: ["Sources"])
+            sources: ["Sources"]
+        ),
+        .testTarget(
+            name: "WS281xTests",
+            dependencies: ["WS281x"],
+            path: "Tests"
+        ),
     ]
 )
