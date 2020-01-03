@@ -215,10 +215,20 @@ public struct WSRGBAColor: ByteConvertibleColor {
     }
 }
 
-// Only used internally for initial 0x0 sequence
 extension UInt32: ByteConvertibleColor {
     public func toByte(order: ColorOrder) -> UInt32 {
-        return self
+        let red = UInt8((self >> UInt32(16)) & 0xff)
+        let green = UInt8((self >> UInt32(8)) & 0xff)
+        let blue = UInt8(self & 0xff)
+        
+        switch order {
+        case .RGB: return (UInt32(red) << 16) | (UInt32(green) << 08) | (UInt32(blue) << 00)
+        case .RBG: return (UInt32(red) << 16) | (UInt32(green) << 00) | (UInt32(blue) << 08)
+        case .GRB: return (UInt32(red) << 08) | (UInt32(green) << 16) | (UInt32(blue) << 00)
+        case .GBR: return (UInt32(red) << 00) | (UInt32(green) << 16) | (UInt32(blue) << 08)
+        case .BRG: return (UInt32(red) << 08) | (UInt32(green) << 00) | (UInt32(blue) << 16)
+        case .BGR: return (UInt32(red) << 00) | (UInt32(green) << 08) | (UInt32(blue) << 16)
+        }
     }
 }
 
