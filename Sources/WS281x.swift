@@ -29,9 +29,9 @@ public class WS281x {
     
     internal let type: WSKind
     internal let pwm: PWMOutput
-    internal let colorOrder: ColorOrder
     internal var sequence: [ByteConvertibleColor]
     
+    public private(set) let colorOrder: ColorOrder
     public var optimizedAnimationMode: Bool = false
 
     public init(
