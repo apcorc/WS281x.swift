@@ -31,6 +31,8 @@ public class WS281x {
     internal let pwm: PWMOutput
     internal let colorOrder: ColorOrder
     internal var sequence: [ByteConvertibleColor]
+    
+    public var optimizedAnimationMode: Bool = false
 
     public init(
         _ pwm: PWMOutput,
@@ -90,7 +92,14 @@ public class WS281x {
     private func toByteStream() -> [UInt8]{
         var byteStream = [UInt8]()
         for led in sequence {
-            let byte = led.toByte(order: self.colorOrder)
+            let byte: UInt32
+            
+            // Bypass shifting colors that have been pre-optimized
+            if let int32Color = led as? UInt32 && optimizedAnimationMode {
+                byte = int32Color
+            } else {
+                byte = led.toByte(order: self.colorOrder)
+            }
             
             byteStream.append(UInt8((byte >> UInt32(16)) & 0xff))
             byteStream.append(UInt8((byte >> UInt32(8)) & 0xff))
