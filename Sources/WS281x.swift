@@ -26,13 +26,12 @@ import SwiftyGPIO  //Comment this when not using the package manager
 
 public class WS281x {
     public let numElements: Int
+    public let colorOrder: ColorOrder
+    public var optimizedAnimationMode: Bool = false
     
     internal let type: WSKind
     internal let pwm: PWMOutput
     internal var sequence: [ByteConvertibleColor]
-    
-    public private(set) let colorOrder: ColorOrder
-    public var optimizedAnimationMode: Bool = false
 
     public init(
         _ pwm: PWMOutput,
@@ -95,7 +94,7 @@ public class WS281x {
             let byte: UInt32
             
             // Bypass shifting colors that have been pre-optimized
-            if let int32Color = led as? UInt32 && optimizedAnimationMode {
+            if let int32Color = led as? UInt32, optimizedAnimationMode {
                 byte = int32Color
             } else {
                 byte = led.toByte(order: self.colorOrder)
