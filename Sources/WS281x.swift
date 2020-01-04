@@ -32,6 +32,8 @@ public class WS281x {
     internal let type: WSKind
     internal let pwm: PWMOutput
     internal var sequence: [ByteConvertibleColor]
+    
+    private var cachedByteStream: [UInt8]
 
     public init(
         _ pwm: PWMOutput,
@@ -43,6 +45,7 @@ public class WS281x {
         self.type = type
         self.numElements = numElements
         self.colorOrder = order
+        self.cachedByteStream = [UInt8](repeating: 0x0, count: numElements * 3)
 
         sequence = [UInt32](repeating: 0x0, count: numElements)
         
@@ -89,7 +92,6 @@ public class WS281x {
         setLed(position, color: color)
     }
     
-    private var cachedByteStream: [UInt8] = []
 
     /// Start transmission
     public func start() {
