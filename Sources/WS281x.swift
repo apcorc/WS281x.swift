@@ -100,7 +100,10 @@ public class WS281x {
                 cachedByteStream = toByteStream()
             }
             
-            pwm.sendDataWithPattern(values: cachedByteStream)
+            let lastVisibleIndex = cachedByteStream.lastIndex(where: { $0 != 0x0 }) ?? cachedByteStream.endIndex
+            let prunedByteStream = Array(cachedByteStream.prefix(through: lastVisibleIndex))
+            
+            pwm.sendDataWithPattern(values: prunedByteStream)
         } else {
             pwm.sendDataWithPattern(values: toByteStream())
         }
