@@ -32,8 +32,6 @@ public class WS281x {
     internal let type: WSKind
     internal let pwm: PWMOutput
     internal var sequence: [ByteConvertibleColor]
-    
-    private var cachedByteStream: [UInt8]
 
     public init(
         _ pwm: PWMOutput,
@@ -45,7 +43,6 @@ public class WS281x {
         self.type = type
         self.numElements = numElements
         self.colorOrder = order
-        self.cachedByteStream = [UInt8](repeating: 0x0, count: numElements * 3)
 
         sequence = [UInt32](repeating: 0x0, count: numElements)
         
@@ -60,22 +57,6 @@ public class WS281x {
 
     /// Set a led using the sequence id
     public func setLed(_ id: Int, color: ByteConvertibleColor) {
-        
-        if optimizedAnimationMode {
-            let byte: UInt32
-            
-            if let int32Color = color as? UInt32 {
-                byte = int32Color
-            } else {
-                byte = color.toByte(order: self.colorOrder)
-            }
-            
-            let byteStreamIndex = id * 3
-            cachedByteStream[byteStreamIndex] = UInt8((byte >> UInt32(16)) & 0xff)
-            cachedByteStream[byteStreamIndex + 1] = UInt8((byte >> UInt32(8)) & 0xff)
-            cachedByteStream[byteStreamIndex + 2] = UInt8(byte & 0xff)
-        }
-        
         sequence[id] = color
     }
 
@@ -95,18 +76,7 @@ public class WS281x {
 
     /// Start transmission
     public func start() {
-        if optimizedAnimationMode {
-            if cachedByteStream.isEmpty {
-                cachedByteStream = toByteStream()
-            }
-            
-            let lastVisibleIndex = cachedByteStream.lastIndex(where: { $0 != 0x0 }) ?? cachedByteStream.endIndex
-            let prunedByteStream = Array(cachedByteStream.prefix(through: lastVisibleIndex))
-            
-            pwm.sendDataWithPattern(values: prunedByteStream)
-        } else {
-            pwm.sendDataWithPattern(values: toByteStream())
-        }
+        pwm.sendDataWithPattern(values: toByteStream())
     }
 
     /// Wait for the transmission to end
