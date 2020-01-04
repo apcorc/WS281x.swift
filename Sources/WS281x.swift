@@ -57,6 +57,22 @@ public class WS281x {
 
     /// Set a led using the sequence id
     public func setLed(_ id: Int, color: ByteConvertibleColor) {
+        
+        if optimizedAnimationMode {
+            let byte: UInt32
+            
+            if let int32Color = color as? UInt32 {
+                byte = int32Color
+            } else {
+                byte = color.toByte(order: self.colorOrder)
+            }
+            
+            let byteStreamIndex = id * 3
+            cachedByteStream[byteStreamIndex] = UInt8((byte >> UInt32(16)) & 0xff)
+            cachedByteStream[byteStreamIndex + 1] = UInt8((byte >> UInt32(8)) & 0xff)
+            cachedByteStream[byteStreamIndex + 2] = UInt8(byte & 0xff)
+        }
+        
         sequence[id] = color
     }
 
@@ -72,10 +88,20 @@ public class WS281x {
         let position = (point.y * width) + point.x
         setLed(position, color: color)
     }
+    
+    private var cachedByteStream: [UInt8] = []
 
     /// Start transmission
     public func start() {
-        pwm.sendDataWithPattern(values: toByteStream())
+        if optimizedAnimationMode {
+            if cachedByteStream.isEmpty {
+                cachedByteStream = toByteStream()
+            }
+            
+            pwm.sendDataWithPattern(values: cachedByteStream)
+        } else {
+            pwm.sendDataWithPattern(values: toByteStream())
+        }
     }
 
     /// Wait for the transmission to end
